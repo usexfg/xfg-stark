@@ -1,0 +1,77 @@
+[workspace]
+
+[package]
+name = "xfg-stark"
+version = "0.1.0"
+edition = "2021"
+authors = ["XFG STARK Team"]
+description = "XFG STARK Proof Implementation"
+
+[features]
+default = ["std"]
+std = []
+no_std = []
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+thiserror = "1.0"
+bincode = "1.3"
+sha2 = "0.10"
+rand = "0.8"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+indicatif = "0.17"
+
+# Winterfell framework dependencies
+winterfell = "0.8"
+winter-crypto = "0.8"
+winter-math = "0.8"
+winter-utils = "0.8"
+
+# Additional cryptographic dependencies
+blake3 = "1.8"
+ripemd = "0.1"
+hex = "0.4"
+sha3 = "0.10"
+
+[dev-dependencies]
+quickcheck = "1.0"
+
+[[example]]
+name = "winterfell_integration_example"
+path = "examples/winterfell_integration_example.rs"
+
+[[example]]
+name = "simple_winterfell_demo"
+path = "examples/simple_winterfell_demo.rs"
+
+[[example]]
+name = "burn_mint_winterfell_example"
+path = "examples/burn_mint_winterfell_example.rs"
+
+[[bin]]
+name = "xfg-stark-cli"
+path = "src/bin/xfg-stark-cli.rs"
+
+[[bin]]
+name = "xfg-stark-enhanced-cli"
+path = "src/bin/xfg-stark-enhanced-cli.rs"
+
+[[bin]]
+name = "xfg-stark-simplified-cli"
+path = "src/bin/xfg-stark-simplified-cli.rs"
+
+[[bin]]
+name = "xfg-commitment-verification"
+path = "src/bin/xfg-commitment-verification.rs"
+
+[[bin]]
+name = "xfg-eldernode-verification"
+path = "src/bin/xfg-eldernode-verification.rs"
+
+[[bin]]
+name = "test_end_to_end_flow"
+path = "scripts/test_end_to_end_flow.rs"
