@@ -223,15 +223,15 @@ This implementation is based on:
 We welcome new maesters to xfgwin! Please see Archmæster or [How to become a mæster](https://github.com/usexfg) for details.
 ## 🔗 Links
 
-- [Repository](https://github.com/ColinRitman/xfgwin)
-- [Issues](https://github.com/ColinRitman/xfgwin/issues)
-- [Discussions](https://github.com/ColinRitman/xfgwin/discussions)
-- [Wiki](https://github.com/ColinRitman/xfgwin/wiki)
+- [Repository](https://github.com/usexfg/xfg-stark)
+- [Issues](https://github.com/usexfg/xfg-stark/issues)
+- [Discussions](https://github.com/usexfg/xfg-stark/discussions)
+- [Wiki](https://github.com/usexfg/xfg-stark/wiki)
 
 ---
 
-**2025 © Elderfire Privacy Group** 
+**2025 © Ξlderfire Privacy Group** 
 
-**<sub>2025 © USEXFG</sub>**
+**<sub>2025 © USΞXF₲</sub>**
 
 <sub><sup>Winter Is Coming</sup></sub>
