@@ -8,11 +8,11 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title Fuego Ξmbers Token (HEAT)
- * @dev Fuego Ξmbers (HEAT) token minted on Arbitrum by burning XFG on Fuego
- * @dev Only the HEATBurnProofVerifier can mint new tokens
+ * @dev Fuego Ξmbers (HEAT) token mints on Ethereum L1 after exact atomic (heat) amount of XFG is burned on Fuego L1 and verified by XFG 𝞝lderfiers, zkSTARK validation on Arbitrum L2, Arbitrum outbox to L1 relays mintHEAT call on L1.
+ * @dev Only HEATBurnProofVerifier contract has authority to mint HEAT tokens
  * @dev Standardized burn amount: 0.8 XFG = 8M HEAT
  * @dev Large burn amount: 800 XFG = 8 Billion HEAT
- * @dev Also serves as gas token for CODL3 rollup
+ * @dev HEAT serves as gas token on C0DL3 rollup
  */
 contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     
@@ -37,10 +37,10 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     /// @dev Only this contract can mint HEAT tokens (HEATBurnProofVerifier)
     address public minter;
     
-    /// @dev Only CODL3 rollup can collect HEAT for gas fees
+    /// @dev Only C0DL3 rollup can collect HEAT for gas fees
     address public codl3GasCollector;
     
-    /// @dev CODL3 treasury address for gas fee collection
+    /// @dev C0DL3 treasury address for gas fee collection
     address public codl3Treasury;
     
     /// @dev Total HEAT minted through XFG burns
@@ -49,10 +49,10 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     /// @dev Total HEAT burned (user burns)
     uint256 public totalBurned;
     
-    /// @dev Total HEAT collected for CODL3 gas fees (20% total to COLDIGM treasury)
+    /// @dev Total HEAT collected for C0DL3 gas fees (20% of total to C0LDIGM treasury)
     uint256 public totalCollectedForGas;
     
-    /// @dev Total HEAT burned for CODL3 gas fees (no longer used - all fees go to treasury)
+    /// @dev Total HEAT burned for C0DL3 gas fees (no longer used - send to treasury)
     uint256 public totalBurnedForGas;
     
     /// @dev Total HEAT burned by treasury (quarterly)
@@ -87,10 +87,10 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     ) ERC20(unicode"Fuego Ξmbers", "HEAT") Ownable(_initialOwner) {
         require(_initialMinter != address(0), "Invalid minter address");
         minter = _initialMinter;
-        codl3GasCollector = address(0); // Will be set when CODL3 is deployed
-        codl3Treasury = address(0); // Will be set when CODL3 treasury is deployed
+        codl3GasCollector = address(0); // Will be set when C0DL3 is deployed
+        codl3Treasury = address(0); // Will be set when C0DL3 treasury is deployed
         
-        // No premint supply - all HEAT comes from XFG burns
+        // N0 PREMINT SUPPLY - ALL Fuego Ξmbers minted only by XFG burn
     }
     
     /* -------------------------------------------------------------------------- */
@@ -98,10 +98,11 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     /* -------------------------------------------------------------------------- */
     
     /**
-     * @dev Mint HEAT tokens from XFG burn proof verification
-     * @param to Recipient of the HEAT tokens
-     * @param amount Amount of HEAT to mint (8M HEAT for 0.8 XFG burn or 8 Billion HEAT for 800 XFG burn)
+     * @dev Mint HEAT tokens from Elderfier consensus of XFG burn proof
+     * @param to Recipient of HEAT tokens
+     * @param amount Amount of HEAT to mint (8M HEAT for 0.8 XFG burn or 8B HEAT for 800 XFG burn)
      */
+
     function mintFromBurnProof(address to, uint256 amount) 
         external 
         whenNotPaused 
@@ -114,48 +115,30 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
             amount == STANDARDIZED_HEAT_MINT || amount == LARGE_HEAT_MINT,
             "Amount must be 8M HEAT (0.8 XFG) or 8 Billion HEAT (800 XFG)"
         );
-        require(totalSupply() + amount <= BACKSTOP_MAX_SUPPLY, "Would exceed backstop max supply");
+        require(totalSupply() + amount <= BACKSTOP_MAX_SUPPLY, "Would exceed backstop max supply"); // if triggered while year < 2034, then ~ wtf (else year>2034:DAOvote)
         
         _mint(to, amount);
         totalMintedFromBurns += amount;
         
         emit HEATMinted(to, amount, block.timestamp);
     }
-    
-    /**
-     * @dev Emergency mint function for owner (only for emergency situations)
-     * @param to Recipient of the HEAT tokens
-     * @param amount Amount of HEAT to mint
-     */
-    function emergencyMint(address to, uint256 amount) 
-        external 
-        onlyOwner 
-        whenNotPaused 
-    {
-        require(to != address(0), "Cannot mint to zero address");
-        require(amount > 0, "Amount must be greater than 0");
-        require(totalSupply() + amount <= BACKSTOP_MAX_SUPPLY, "Would exceed backstop max supply");
-        
-        _mint(to, amount);
-        
-        emit HEATMinted(to, amount, block.timestamp);
-    }
 
     /**
-     * @dev Mint HEAT tokens from L2 verification via Arbitrum bridge
+     * @dev Mint HEAT from L2 verification via Arbitrum bridge
      * @dev Only callable by Arbitrum's Outbox contract
      * @param commitment Commitment from XFG STARK proof (prevents replay)
      * @param recipient Address to receive HEAT tokens
      * @param amount Amount of HEAT to mint
      * @param version Commitment format version (for future upgrades)
      */
+
     function mintFromL2(
         bytes32 commitment,
         address recipient,
         uint256 amount,
         uint32 version
     ) external whenNotPaused nonReentrant {
-        // Only Arbitrum's Outbox can call this function
+        // Only Arbitrum's Outbox can call this
         require(msg.sender == 0x0B9857ae2D4A3DBe74ffE1d7DF045bb7F96E4840, "Only Arbitrum Outbox");
         require(recipient != address(0), "Cannot mint to zero address");
         require(amount > 0, "Amount must be greater than 0");
@@ -190,7 +173,7 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /* -------------------------------------------------------------------------- */
-    /*                              Burning Functions                             */
+    /*                          HEAT Burning Functions                            */
     /* -------------------------------------------------------------------------- */
     
     /**
@@ -225,11 +208,11 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /* -------------------------------------------------------------------------- */
-    /*                           CODL3 Gas Functions                              */
+    /*                           C0DL3 Gas Functions                              */
     /* -------------------------------------------------------------------------- */
     
     /**
-     * @dev Collect HEAT tokens for CODL3 gas fees (only callable by CODL3 rollup)
+     * @dev Collect HEAT tokens for C0DL3 gas fees (only callable by C0DL3 rollup)
      * @param from Address to collect HEAT from
      * @param totalAmount Total amount of HEAT for gas fees
      * @dev 20% to treasury, 80% to miners/validators
@@ -238,13 +221,13 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
         external 
         whenNotPaused 
     {
-        require(msg.sender == codl3GasCollector, "Only CODL3 gas collector can collect for gas");
-        require(from != address(0), "Cannot collect from zero address");
+        require(msg.sender == codl3GasCollector, "Only C0DL3 gas_collector can collect for gas");
+        require(from != address(0), "Cant collect from zero address");
         require(totalAmount > 0, "Amount must be greater than 0");
         require(balanceOf(from) >= totalAmount, "Insufficient balance");
         
         // Calculate fee distribution
-        uint256 treasuryAmount = (totalAmount * 20) / 100; // 20% to COLDIGM treasury
+        uint256 treasuryAmount = (totalAmount * 20) / 100; // 20% to COLDIGM treasuries
         uint256 minerAmount = totalAmount - treasuryAmount; // 80% to validators & miners
         
         // Transfer 20% to COLDIGM treasury
@@ -254,41 +237,41 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
         
         // Transfer 80% to miners/validators (handled by CODL3)
         // Note: This amount is already deducted from user's balance above
-        // CODL3 will handle the distribution to miners/validators
+        // C0DL3 will handle the distribution to miners/validators
     }
     
     /**
-     * @dev Collect HEAT tokens for CODL3 gas fees with allowance (only callable by CODL3 rollup)
+     * @dev Collect HEAT for C0DL3 gas fees with allowance (only callable by C0DL3 rollup)
      * @param from Address to collect HEAT from
      * @param spender Address that has allowance
      * @param totalAmount Total amount of HEAT for gas fees
-     * @dev 20% to COLDIGM treasury, 80% to miners/validators
+     * @dev 20% to C0LDIGM treasury, 80% to miners/validators
      */
     function collectForCODL3GasFrom(address from, address spender, uint256 totalAmount) 
         external 
         whenNotPaused 
     {
-        require(msg.sender == codl3GasCollector, "Only CODL3 gas collector can collect for gas");
-        require(from != address(0), "Cannot collect from zero address");
+        require(msg.sender == codl3GasCollector, "Only C0DL3 gas collector can collect for gas");
+        require(from != address(0), "Cant collect from zero address");
         require(totalAmount > 0, "Amount must be greater than 0");
         require(balanceOf(from) >= totalAmount, "Insufficient balance");
         require(allowance(from, spender) >= totalAmount, "Insufficient allowance");
         
         // Calculate fee distribution
-        uint256 treasuryAmount = (totalAmount * 20) / 100; // 20% to treasury
+        uint256 treasuryAmount = (totalAmount * 20) / 100; // 20% to C0LDIGM treasury
         uint256 minerAmount = totalAmount - treasuryAmount; // 80% to miners
         
         // Spend allowance for the total amount
         _spendAllowance(from, spender, totalAmount);
         
-        // Transfer 20% to COLDIGM treasury
+        // Transfer 20% to C0LDIGM treasury
         _transfer(from, codl3Treasury, treasuryAmount);
         totalCollectedForGas += treasuryAmount;
         emit HEATCollectedForGas(from, treasuryAmount, block.timestamp);
         
-        // Transfer 80% to miners/validators (handled by CODL3)
+        // Transfer 80% to miners/validators (handled by C0DL3)
         // Note: This amount is already deducted from user's balance above
-        // CODL3 will handle the distribution to miners/validators
+        // C0DL3 will handle the distribution to miners/validators
     }
     
     /**
@@ -299,7 +282,7 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
         external 
         whenNotPaused 
     {
-        require(msg.sender == codl3Treasury, "Only CODL3 treasury can burn from treasury");
+        require(msg.sender == codl3Treasury, "Only C0LDIGM DAO can burn from treasury");
         require(amount > 0, "Amount must be greater than 0");
         require(balanceOf(codl3Treasury) >= amount, "Insufficient treasury balance");
         
@@ -310,7 +293,7 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /* -------------------------------------------------------------------------- */
-    /*                              Admin Functions                               */
+    /*                        Admin / C0LDDAO Functions                       */
     /* -------------------------------------------------------------------------- */
     
     /**
@@ -326,8 +309,8 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev Update the CODL3 gas collector address
-     * @param newGasCollector New CODL3 gas collector address
+     * @dev Update the C0DL3 gas collector address
+     * @param newGasCollector New C0DL3 gas collector address
      */
     function updateCODL3GasCollector(address newGasCollector) external onlyOwner {
         address oldGasCollector = codl3GasCollector;
@@ -337,8 +320,8 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev Update the CODL3 treasury address
-     * @param newTreasury New CODL3 treasury address
+     * @dev Update the C0DL3 treasury address
+     * @param newTreasury New C0DL3 treasury address
      */
     function updateCODL3Treasury(address newTreasury) external onlyOwner {
         require(newTreasury != address(0), "Invalid treasury address");
@@ -363,18 +346,18 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /* -------------------------------------------------------------------------- */
-    /*                              View Functions                                */
+    /*                           HEAT View Functions                              */
     /* -------------------------------------------------------------------------- */
     
     /**
-     * @dev Get token statistics
-     * @return _totalSupply Current total supply
-     * @return _totalMintedFromBurns Total minted from XFG burns
-     * @return _totalBurned Total burned (user burns)
-     * @return _totalCollectedForGas Total collected for CODL3 gas fees (8% to treasury)
-     * @return _totalBurnedForGas Total burned for CODL3 gas fees (2% immediate burn)
-     * @return _totalBurnedByTreasury Total burned by treasury (quarterly)
-     * @return _backstopMaxSupply Backstop maximum supply
+     * @dev Get HEAT statistics
+     * @return _totalSupply Current total HEAT supply
+     * @return _totalMintedFromBurns Total minted from XFG burns (should be == totalSupply)
+     * @return _totalBurned Total HEAT burned (user burns)
+     * @return _totalCollectedForGas Total collected for C0DL3 gas fees (8% to treasury)
+     * @return _totalBurnedForGas Total burned for C0DL3 gas fees (2% immediate burn) no longer used
+     * @return _totalBurnedByTreasury Total HEAT burned (by treasury) (quarterly?)
+     * @return _backstopMaxSupply Theoretical backstop supply
      */
     function getStats() external view returns (
         uint256 _totalSupply,
@@ -397,7 +380,7 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev Check if an address is the current minter
+     * @dev Check if address is current minter
      * @param addr Address to check
      * @return True if address is the minter
      */
@@ -406,18 +389,18 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev Check if an address is the current CODL3 gas collector
+     * @dev Check if an address is the current C0DL3 gas_collector
      * @param addr Address to check
-     * @return True if address is the CODL3 gas collector
+     * @return True if address is the C0DL3 gas_collector
      */
     function isCODL3GasCollector(address addr) external view returns (bool) {
         return addr == codl3GasCollector;
     }
     
     /**
-     * @dev Check if an address is the current CODL3 treasury (COLDIGM)
+     * @dev Check if an address is the current C0DL3 treasury (C0LDIGM)
      * @param addr Address to check
-     * @return True if address is the CODL3 treasury
+     * @return True if address is the C0DL3 treasury
      */
     function isCODL3Treasury(address addr) external view returns (bool) {
         return addr == codl3Treasury;
@@ -464,4 +447,4 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
     
 
-}
+} /** winter is coming */
