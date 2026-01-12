@@ -16,7 +16,7 @@ A fortress of cryptographic strength, implementing STARK (Scalable Transparent A
 - **⚔️ Field Arithmetic**: Type-safe field element operations with constant-time implementations that would make the Night's Watch proud
 - **📜 Polynomial Operations**: Efficient polynomial arithmetic and evaluation, more precise than even Mæster Luwin's calculations
 - **🏰 STARK Proof System**: Complete STARK proof generation and verification- the cryptographic equivalent of Winterfell's defenses
-- **🔮 Type System**: Comprehensive type definitions for all cryptographic operations, as thorough as the Stark family tree
+- **𐂷 Type System**: Comprehensive type definitions for all cryptographic operations, as thorough as the Stark family tree
 
 ### 🛡️ Security Fortifications
 
@@ -26,14 +26,14 @@ A fortress of cryptographic strength, implementing STARK (Scalable Transparent A
 - Memory safety through Rust's type system as strong as Valyrian steel
 - Comprehensive error handling with Result types as true as the word of Ned Stark's son.
 
-### ⚡ Performance Weapons
+### ⚡ Performance ~~Weapons~~ Tools
 
 - Zero-cost abstractions for all operations as efficient as Arya's water dancing
 - Optimized field arithmetic implementations as fast as direwolves
 - Efficient polynomial evaluation algorithms as precise as one of The L3-eyed Raven's visions
 - Minimal runtime overhead for type safety as light as a crow's feather
 
-## 🏗️ Building Winterfell
+## ⛫ Building Winterfell
 
 ### Prerequisites
 #### The forge of the North
@@ -229,6 +229,8 @@ We welcome new maesters to xfgwin! Please see Archmæster or [How to become a m�
 - [Wiki](https://github.com/usexfg/xfg-stark/wiki)
 
 ---
+
+Built with ❤️‍🔥 for the Fuego community
 
 **2025 © Ξlderfire Privacy Group** 
 
