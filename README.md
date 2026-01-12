@@ -5,7 +5,7 @@
 [![Winterfell Standards](https://img.shields.io/badge/Winterfell%20Standards-Enforced-green.svg)](https://github.com/ColinRitman/xfgwinter)                                                                                       
 <img src="https://dreamgifs5.files.wordpress.com/2016/06/untitled-2314.gif?w=760"></img>
 
-**🏰 Winterfell based zkSTARKs for XFG collateral proofs ❄️**
+**❄️Winterfell based zkSTARKs for XFG collateral burn proofs🔥**
 
 A fortress of cryptographic strength, implementing STARK (Scalable Transparent Argument of Knowledge) proofs with the unyielding security of Winterfell's walls, memory safety as solid as the castle's foundation, and zero-cost abstractions that would make even the most cunning Lannister envious.                                               
 
