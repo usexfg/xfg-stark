@@ -1,11 +1,11 @@
-# <img height=42px width=42px src="https://github.com/usexfg/fuego-data/blob/6f709a802e9f7da2244624946b627462fa4592ec/fuego-images/wolf-right.svg"></img> XFG STARK Proofs 
+# <img height=42px width=42px src="https://github.com/usexfg/fuego-data/blob/6f709a802e9f7da2244624946b627462fa4592ec/fuego-images/wolf-right.svg"></img> XFG STARKs
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-blue.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Winterfell Standards](https://img.shields.io/badge/Winterfell%20Standards-Enforced-green.svg)](https://github.com/ColinRitman/xfgwinter)                                                                                       
 <img src="https://dreamgifs5.files.wordpress.com/2016/06/untitled-2314.gif?w=760"></img>
 
-**🏰 Winterfell XFG STARKs ❄️ Where Cryptography Meets the North**
+**🏰 Winterfell based zkSTARKs for XFG collateral proofs ❄️**
 
 A fortress of cryptographic strength, implementing STARK (Scalable Transparent Argument of Knowledge) proofs with the unyielding security of Winterfell's walls, memory safety as solid as the castle's foundation, and zero-cost abstractions that would make even the most cunning Lannister envious.                                               
 
