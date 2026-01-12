@@ -106,7 +106,8 @@ jobs:
   create-release:
     needs: build-and-release
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Remove the if condition to allow release creation on workflow_dispatch
+    # if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
     - name: Checkout code
@@ -122,12 +123,14 @@ jobs:
         find artifacts -type f | sort
 
     - name: Create Release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v1
       with:
         files: |
           artifacts/*/*.tar.gz
           artifacts/*/*.zip
         generate_release_notes: true
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
