@@ -227,23 +227,20 @@ contract FuegoCOLDAOToken is ERC1155, Ownable, Pausable, ReentrancyGuard {
      * @param commitment Commitment from XFG STARK proof (prevents replay)
      * @param recipient Address to receive CD tokens
      * @param editionId Edition ID to mint
-     * @param interestAmount Amount of CD interest to mint
-     * @param xfgPrincipal Amount of XFG principal locked
+     * @param cdAmount Amount of CD interest to mint (fixed per tier)
      * @param version Commitment format version (should be 3 for COLD deposits)
      */
     function mintFromL2(
         bytes32 commitment,
         address recipient,
         uint256 editionId,
-        uint256 interestAmount,
-        uint256 xfgPrincipal,
+        uint256 cdAmount,
         uint32 version
     ) external whenNotPaused nonReentrant {
         // Only Arbitrum's Outbox can call this
         require(msg.sender == 0x0B9857ae2D4A3DBe74ffE1d7DF045bb7F96E4840, "Only Arbitrum Outbox");
         require(recipient != address(0), "Cannot mint to zero address");
-        require(interestAmount > 0, "Amount must be greater than 0");
-        require(xfgPrincipal > 0, "XFG principal must be greater than 0");
+        require(cdAmount > 0, "Amount must be greater than 0");
         require(version == 3, "Unsupported commitment version (must be 3 for COLD deposits)");
 
         // Check if commitment has already been used (prevents replay)
@@ -255,30 +252,21 @@ contract FuegoCOLDAOToken is ERC1155, Ownable, Pausable, ReentrancyGuard {
         Edition storage edition = editions[editionId];
         require(edition.active, "Edition not active");
         require(
-            edition.totalMinted + interestAmount <= edition.maxSupply,
+            edition.totalMinted + cdAmount <= edition.maxSupply,
             "Would exceed edition max supply"
         );
 
         // Mint CD interest tokens
-        _mint(recipient, editionId, interestAmount, "");
+        _mint(recipient, editionId, cdAmount, "");
 
         // Update edition stats
-        edition.totalMinted += interestAmount;
+        edition.totalMinted += cdAmount;
 
         // Update global stats
-        totalCDMinted += interestAmount;
-        totalXFGPrincipalLocked += xfgPrincipal;
+        totalCDMinted += cdAmount;
 
-        // Update holder deposit info
-        DepositInfo storage deposit = holderDeposits[recipient];
-        deposit.totalPrincipal += xfgPrincipal;
-        deposit.totalInterest += interestAmount;
-        if (deposit.firstDepositTime == 0) {
-            deposit.firstDepositTime = block.timestamp;
-        }
-
-        emit CDMinted(recipient, editionId, interestAmount, xfgPrincipal, block.timestamp);
-        emit CDMintedFromL2(commitment, recipient, editionId, interestAmount, version, block.timestamp);
+        emit CDMinted(recipient, editionId, cdAmount, 0, block.timestamp);
+        emit CDMintedFromL2(commitment, recipient, editionId, cdAmount, version, block.timestamp);
     }
 
     /**
