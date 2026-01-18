@@ -70,10 +70,16 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
     
     /// @dev Large XFG burn amount (800 XFG)
     uint256 public constant LARGE_XFG_BURN = 8_000_000_000; // 800 XFG in atomic units
-    
+
     /// @dev Large HEAT mint amount (8B HEAT)
     uint256 public constant LARGE_HEAT_MINT = 8_000_000_000 * 10**18;
-    
+
+    /// @dev Version 2 - Medium XFG burn amount (80 XFG)
+    uint256 public constant MEDIUM_XFG_BURN = 800_000_000; // 80 XFG in atomic units
+
+    /// @dev Version 2 - Medium HEAT mint amount (800M HEAT)
+    uint256 public constant MEDIUM_HEAT_MINT = 800_000_000 * 10**18;
+
     /// @dev Mapping to track used commitments for L2 minting
     mapping(bytes32 => bool) public usedCommitments;
     
@@ -103,17 +109,17 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
      * @param amount Amount of HEAT to mint (8M HEAT for 0.8 XFG burn or 8B HEAT for 800 XFG burn)
      */
 
-    function mintFromBurnProof(address to, uint256 amount) 
-        external 
-        whenNotPaused 
-        nonReentrant 
+    function mintFromBurnProof(address to, uint256 amount)
+        external
+        whenNotPaused
+        nonReentrant
     {
         require(msg.sender == minter, "Only minter can mint from burn proofs");
         require(to != address(0), "Cannot mint to zero address");
         require(amount > 0, "Amount must be greater than 0");
         require(
-            amount == STANDARDIZED_HEAT_MINT || amount == LARGE_HEAT_MINT,
-            "Amount must be 8M HEAT (0.8 XFG) or 8 Billion HEAT (800 XFG)"
+            amount == STANDARDIZED_HEAT_MINT || amount == MEDIUM_HEAT_MINT || amount == LARGE_HEAT_MINT,
+            "Amount must be 8M, 800M, or 8B HEAT"
         );
         require(totalSupply() + amount <= BACKSTOP_MAX_SUPPLY, "Would exceed backstop max supply"); // if triggered while year < 2034, then ~ wtf (else year>2034:DAOvote)
         
@@ -143,11 +149,11 @@ contract EmbersTokenHEAT is ERC20, Ownable, Pausable, ReentrancyGuard {
         require(recipient != address(0), "Cannot mint to zero address");
         require(amount > 0, "Amount must be greater than 0");
         require(
-            amount == STANDARDIZED_HEAT_MINT || amount == LARGE_HEAT_MINT,
-            "Amount must be 8M HEAT (0.8 XFG) or 8 Billion HEAT (800 XFG)"
+            amount == STANDARDIZED_HEAT_MINT || amount == MEDIUM_HEAT_MINT || amount == LARGE_HEAT_MINT,
+            "Amount must be 8M, 800M, or 8B HEAT"
         );
         require(totalSupply() + amount <= BACKSTOP_MAX_SUPPLY, "Would exceed backstop max supply");
-        require(version == 1, "Unsupported commitment version");
+        require(version == 1 || version == 2, "Unsupported commitment version");
         
         // Check if commitment has already been used (prevents replay)
         require(!usedCommitments[commitment], "Commitment already used");

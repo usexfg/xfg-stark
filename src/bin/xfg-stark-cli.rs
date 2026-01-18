@@ -678,9 +678,9 @@ fn create_package(
     // Parse burn amount
     let burn_amount_f64: f64 = 0.8; // Default to standard burn
 
-    // Validate burn amount
-    if burn_amount_f64 != 0.8 && burn_amount_f64 != 800.0 {
-        eprintln!("❌ Burn amount must be exactly 0.8 or 800.0 XFG");
+    // Validate burn amount (supports v3: 0.8, 8, 80, 800)
+    if burn_amount_f64 != 0.8 && burn_amount_f64 != 8.0 && burn_amount_f64 != 80.0 && burn_amount_f64 != 800.0 {
+        eprintln!("❌ Burn/deposit amount must be exactly 0.8, 8, 80, or 800 XFG");
         std::process::exit(1);
     }
 

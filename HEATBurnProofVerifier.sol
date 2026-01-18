@@ -79,10 +79,16 @@ contract HEATBurnProofVerifier is Ownable, Pausable, ReentrancyGuard {
     
     /// @dev Large XFG burn amount (800 XFG)
     uint256 public constant LARGE_XFG_BURN = 8_000_000_000; // 800 XFG in smallest units
-    
+
     /// @dev Large HEAT mint amount (8,000,000,000 HEAT)
     uint256 public constant LARGE_HEAT_MINT = 8_000_000_000 * 10**18;
-    
+
+    /// @dev Version 2 - Medium XFG burn amount (80 XFG)
+    uint256 public constant MEDIUM_XFG_BURN = 800_000_000; // 80 XFG in smallest units
+
+    /// @dev Version 2 - Medium HEAT mint amount (800,000,000 HEAT)
+    uint256 public constant MEDIUM_HEAT_MINT = 800_000_000 * 10**18;
+
     /// @dev Fuego network ID (chain ID) - 46414e44-4f4d-474f-4c44-001210110110
     uint256 public constant FUEGO_NETWORK_ID = 93385046440755750514194170694064996624;
     
@@ -215,7 +221,107 @@ contract HEATBurnProofVerifier is Ownable, Pausable, ReentrancyGuard {
 
         return;
     }
-    
+
+    /**
+     * @dev Claim HEAT tokens using version 2 proof (3 burn tiers)
+     * @param secret Secret used in commitment
+     * @param proof STARK proof bytes
+     * @param publicInputs Public inputs for proof verification [nullifier, commitment, recipientHash, networkId]
+     * @param recipient Address to receive HEAT tokens
+     * @param burnTier Tier index: 0=0.8 XFG, 1=80 XFG, 2=800 XFG
+     * @param eldernodeProof Optional Eldernode consensus proof (if verification required)
+     */
+    function claimHEATv2(
+        bytes32 secret,
+        bytes calldata proof,
+        bytes32[] calldata publicInputs,
+        address recipient,
+        uint8 burnTier,
+        bytes calldata eldernodeProof
+    ) external whenNotPaused nonReentrant {
+        require(recipient != address(0), "Invalid recipient address");
+        require(publicInputs.length == 4, "Invalid public inputs length (need 4: nullifier, commitment, recipientHash, networkId)");
+        require(burnTier <= 2, "Invalid burn tier (must be 0, 1, or 2)");
+
+        // Extract public inputs
+        bytes32 nullifier = publicInputs[0];
+        bytes32 commitment = publicInputs[1];
+        bytes32 recipientHash = publicInputs[2];
+        uint256 networkId = uint256(publicInputs[3]);
+
+        // Verify nullifier hasn't been used
+        require(!nullifiersUsed[nullifier], "Nullifier already used");
+
+        // Verify recipient hash matches
+        require(
+            recipientHash == keccak256(abi.encodePacked(recipient)),
+            "Recipient hash mismatch"
+        );
+
+        // Verify network ID
+        require(networkId == FUEGO_NETWORK_ID, "Invalid network ID");
+
+        // Verify STARK proof
+        bool proofValid = verifyStarkProof(proof, publicInputs);
+        require(proofValid, "Invalid STARK proof");
+
+        // Verify Eldernode consensus (if required)
+        if (eldernodeVerificationRequired && address(eldernodeVerifier) != address(0)) {
+            bool eldernodeValid = verifyEldernodeConsensus(commitment, eldernodeProof);
+            require(eldernodeValid, "Eldernode consensus verification failed");
+            totalEldernodeVerifications += 1;
+        } else if (eldernodeVerificationRequired && address(eldernodeVerifier) == address(0)) {
+            totalEldernodeFailures += 1;
+            revert("Eldernode verification required but no verifier set");
+        }
+
+        // Mark nullifier used
+        nullifiersUsed[nullifier] = true;
+
+        // ------------------------------------------------------------------
+        // 📤  SEND MESSAGE TO L1 HEAT TOKEN CONTRACT VIA ARB SYS (VERSION 2)
+        // ------------------------------------------------------------------
+
+        // Determine HEAT amount based on burn tier
+        uint256 heatAmount;
+        if (burnTier == 0) {
+            heatAmount = STANDARDIZED_HEAT_MINT;  // 8M HEAT
+        } else if (burnTier == 1) {
+            heatAmount = MEDIUM_HEAT_MINT;        // 800M HEAT
+        } else {
+            heatAmount = LARGE_HEAT_MINT;         // 8B HEAT
+        }
+
+        // Compose calldata for L1 mint function with version=2
+        bytes memory data = abi.encodeWithSignature(
+            "mintFromL2(bytes32,address,uint256,uint32)",
+            commitment,
+            recipient,
+            heatAmount,
+            2  // commitment_version = 2
+        );
+
+        // Enqueue call via ArbSys with L1 gas fees – returns ticket ID
+        uint256 ticketId = ARB_SYS.sendTxToL1{value: msg.value}(address(heatToken), data);
+
+        // Emit L1 gas payment event
+        emit L1GasPaid(msg.sender, msg.value, ticketId, commitment);
+
+        emit ProofVerified(burnTxHashFromCommitment(commitment), recipient, heatAmount, nullifier);
+        emit EldernodeVerification(
+            burnTxHashFromCommitment(commitment),
+            eldernodeVerificationRequired ? 5 : 0,
+            MIN_ELDERNODE_CONSENSUS,
+            eldernodeVerificationRequired && address(eldernodeVerifier) != address(0)
+        );
+
+        totalProofsVerified += 1;
+        totalHEATMinted += heatAmount;
+        totalClaims += 1;
+
+        return;
+    }
+
     /**
      * @dev Estimate L1 gas fees for cross-chain minting
      * @param recipient Address to receive HEAT tokens
@@ -245,7 +351,45 @@ contract HEATBurnProofVerifier is Ownable, Pausable, ReentrancyGuard {
         
         return estimatedGasFee;
     }
-    
+
+    /**
+     * @dev Estimate L1 gas fees for version 2 cross-chain minting
+     * @param recipient Address to receive HEAT tokens
+     * @param burnTier Tier index: 0=0.8 XFG, 1=80 XFG, 2=800 XFG
+     * @return estimatedGasFee Estimated L1 gas fee in wei
+     * @dev This is an estimate - actual fees may vary based on L1 gas prices
+     */
+    function estimateL1GasFeeV2(address recipient, uint8 burnTier) external view returns (uint256 estimatedGasFee) {
+        require(burnTier <= 2, "Invalid burn tier");
+
+        uint256 heatAmount;
+        if (burnTier == 0) {
+            heatAmount = STANDARDIZED_HEAT_MINT;
+        } else if (burnTier == 1) {
+            heatAmount = MEDIUM_HEAT_MINT;
+        } else {
+            heatAmount = LARGE_HEAT_MINT;
+        }
+
+        // Compose calldata for L1 mint function
+        bytes memory data = abi.encodeWithSignature(
+            "mintFromL2(bytes32,address,uint256,uint32)",
+            bytes32(0), // placeholder commitment
+            recipient,
+            heatAmount,
+            2  // commitment_version = 2
+        );
+
+        // Estimate L1 gas fee based on calldata size and current L1 gas price
+        uint256 calldataSize = data.length;
+        uint256 estimatedL1GasPrice = 20 gwei; // Conservative estimate
+
+        // Base cost for L2→L1 message + calldata cost
+        estimatedGasFee = (21000 + calldataSize * 16) * estimatedL1GasPrice;
+
+        return estimatedGasFee;
+    }
+
     /**
      * @dev Get recommended L1 gas fee with 20% buffer
      * @param recipient Address to receive HEAT tokens

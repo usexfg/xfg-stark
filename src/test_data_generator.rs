@@ -83,10 +83,11 @@ impl TestDataGenerator {
 
     /// Generate realistic burn amounts for testing
     pub fn generate_burn_amounts() -> (f64, u64) {
-        // Valid burn amounts: 0.8 XFG or 800.0 XFG
+        // Valid burn amounts: 0.8 XFG, 80 XFG (v2), or 800.0 XFG
         let amounts = vec![
-            (0.8, 8_000_000),      // 0.8 XFG in atomic units
-            (800.0, 8_000_000_000), // 800.0 XFG in atomic units
+            (0.8, 8_000_000),        // 0.8 XFG in atomic units (tier 0)
+            (80.0, 800_000_000),     // 80 XFG in atomic units (tier 1, v2)
+            (800.0, 8_000_000_000),  // 800.0 XFG in atomic units (tier 2)
         ];
 
         // Generate cryptographically secure random selection

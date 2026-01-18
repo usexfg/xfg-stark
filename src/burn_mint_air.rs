@@ -202,21 +202,24 @@ impl XfgBurnMintAir {
     }
 
     /// Validate burn amount constraints (in atomic units)
+    /// Supports 3 tiers: 0.8 XFG, 80 XFG, and 800 XFG (for versions 2+)
     fn validate_burn_amount<E: FieldElement<BaseField = BaseElement>>(&self, burn_amount: E) -> E {
         // XFG uses 7 decimal places: 1 XFG = 10,000,000 atomic units
-        let standard_burn = E::from(8_000_000u32);  // 0.8 XFG in atomic units
-        
-        // For large burns, we'll use a different approach since 800 XFG = 8,000,000,000 exceeds u32
-        // We'll validate that the burn amount is either the standard amount OR a large amount
-        // by checking if it's divisible by the standard amount and within reasonable bounds
-        
-        // Check if burn_amount is either standard_burn OR a multiple of standard_burn * 1000 (800 XFG)
-        let large_burn_multiplier = E::from(1000u32);
-        let large_burn_threshold = standard_burn * large_burn_multiplier;
-        
-        // Constraint: (burn_amount - standard_burn) * (burn_amount - large_burn_threshold) = 0
-        // This ensures burn_amount is either 0.8 XFG or 800 XFG
-        (burn_amount - standard_burn) * (burn_amount - large_burn_threshold)
+        let tier0 = E::from(8_000_000u32);          // 0.8 XFG in atomic units
+
+        // For tier1 (80 XFG) and tier2 (800 XFG), we need to handle large numbers
+        // 80 XFG = 800,000,000 atomic units (fits in u32)
+        let tier1 = E::from(800_000_000u32);        // 80 XFG in atomic units
+
+        // 800 XFG = 8,000,000,000 atomic units (needs special handling as it exceeds u32)
+        let tier2_multiplier = E::from(1000u32);
+        let tier2 = tier1 * tier2_multiplier;       // 800 XFG in atomic units
+
+        // Constraint: (burn_amount - tier0) * (burn_amount - tier1) * (burn_amount - tier2) = 0
+        // This ensures burn_amount is exactly one of the three valid tiers
+        // Note: This constraint works for all versions (v1, v2, v3, v4)
+        // Version-specific validation happens in prover/verifier Rust code
+        (burn_amount - tier0) * (burn_amount - tier1) * (burn_amount - tier2)
     }
 
     /// Validate mint proportionality (1:1 ratio in atomic units)

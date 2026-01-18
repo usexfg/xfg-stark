@@ -130,7 +130,7 @@ impl XfgBurnMintVerifier {
         commitment_version: u32,  // Commitment format version
     ) -> Result<bool> {
         // Validate inputs
-        self.validate_inputs(burn_amount, mint_amount, txn_hash, recipient_address)?;
+        self.validate_inputs(burn_amount, mint_amount, txn_hash, recipient_address, commitment_version)?;
 
         // Compute recipient hash
         let recipient_hash = self.compute_recipient_hash(recipient_address);
@@ -185,36 +185,61 @@ impl XfgBurnMintVerifier {
     }
 
     /// Validate input parameters
+    /// Version-aware validation supports v1 (2 tiers), v2 (3 tiers)
     fn validate_inputs(
         &self,
         burn_amount: u64,
         mint_amount: u64,
         txn_hash: u64,
         recipient_address: &[u8],
+        commitment_version: u32,
     ) -> Result<()> {
-        // Validate burn amount
-        let standard_burn = 8_000_000u64;  // 0.8 XFG in atomic units
-            let large_burn = 8_000_000_000u64; // 800 XFG in atomic units
-    
-    if burn_amount != standard_burn && burn_amount != large_burn {
-        return Err(crate::XfgStarkError::CryptoError(
-            "Burn amount must be exactly 0.8 XFG or 800 XFG".to_string(),
-        ));
-    }
+        // Validate burn/deposit and mint amounts based on version
+        if commitment_version == 1 {
+            // Version 1: 2 tiers (XFG burns → HEAT)
+            let standard_burn = 8_000_000u64;
+            let large_burn = 8_000_000_000u64;
 
-        // Validate mint amount
+            if burn_amount != standard_burn && burn_amount != large_burn {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Version 1: Burn amount must be exactly 0.8 XFG or 800 XFG".to_string(),
+                ));
+            }
+
+            if mint_amount != burn_amount {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Mint amount must equal burn amount for 1:1 conversion".to_string(),
+                ));
+            }
+        } else if commitment_version == 2 {
+            // Version 2: 3 tiers (XFG burns → HEAT)
+            let tier0_burn = 8_000_000u64;
+            let tier1_burn = 800_000_000u64;
+            let tier2_burn = 8_000_000_000u64;
+
+            if burn_amount != tier0_burn && burn_amount != tier1_burn && burn_amount != tier2_burn {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Version 2: Burn amount must be exactly 0.8 XFG, 80 XFG, or 800 XFG".to_string(),
+                ));
+            }
+
+            if mint_amount != burn_amount {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Mint amount must equal burn amount for 1:1 conversion".to_string(),
+                ));
+            }
+        } else {
+            return Err(crate::XfgStarkError::CryptoError(
+                format!("Unsupported commitment version: {}", commitment_version),
+            ));
+        }
+
+        // Validate mint amount is non-zero
         if mint_amount == 0 {
             return Err(crate::XfgStarkError::CryptoError(
                 "Mint amount must be greater than 0".to_string(),
             ));
         }
-
-       // Validate 1:1 conversion in atomic units
-    if mint_amount != burn_amount {
-        return Err(crate::XfgStarkError::CryptoError(
-            "Mint amount must equal burn amount for 1:1 conversion".to_string(),
-        ));
-    }
 
         // Validate transaction hash
         if txn_hash == 0 {
@@ -432,36 +457,58 @@ mod tests {
         
         let recipient = [0x12u8; 20]; // Valid 20-byte address
 
-        // Valid inputs - using realistic burn amounts
+        // Valid inputs v1 (2 tiers)
         assert!(verifier
-            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient) // 0.8 XFG burn = 0.8 XFG mint (1:1)
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 1)
             .is_ok());
 
-        // Invalid burn amount
+        // Valid inputs v2 (3 tiers) - tier 0
         assert!(verifier
-            .validate_inputs(0, 8_000_000, tx_hash_u64, &recipient)
-            .is_err());
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 2)
+            .is_ok());
+
+        // Valid inputs v2 - tier 1 (80 XFG)
         assert!(verifier
-            .validate_inputs(8_000_000_001, 8_000_000, tx_hash_u64, &recipient) // Invalid amount
+            .validate_inputs(800_000_000, 800_000_000, tx_hash_u64, &recipient, 2)
+            .is_ok());
+
+        // Valid inputs v2 - tier 2 (800 XFG)
+        assert!(verifier
+            .validate_inputs(8_000_000_000, 8_000_000_000, tx_hash_u64, &recipient, 2)
+            .is_ok());
+
+        // Invalid burn amount (zero)
+        assert!(verifier
+            .validate_inputs(0, 8_000_000, tx_hash_u64, &recipient, 1)
             .is_err());
 
-        // Invalid mint amount
+        // Invalid burn amount for v1 (tier1 not allowed)
         assert!(verifier
-            .validate_inputs(8_000_000, 0, tx_hash_u64, &recipient)
+            .validate_inputs(800_000_000, 800_000_000, tx_hash_u64, &recipient, 1)
             .is_err());
 
-        // Invalid proportionality (mint must equal burn for 1:1 ratio)
+        // Invalid mint amount (zero)
         assert!(verifier
-            .validate_inputs(8_000_000, 16_000_000, tx_hash_u64, &recipient) // 2:1 ratio invalid
+            .validate_inputs(8_000_000, 0, tx_hash_u64, &recipient, 1)
+            .is_err());
+
+        // Invalid proportionality
+        assert!(verifier
+            .validate_inputs(8_000_000, 16_000_000, tx_hash_u64, &recipient, 1)
             .is_err());
 
         // Invalid transaction hash
-        assert!(verifier.validate_inputs(8_000_000, 8_000_000, 0, &recipient).is_err());
+        assert!(verifier.validate_inputs(8_000_000, 8_000_000, 0, &recipient, 1).is_err());
 
-        // Invalid recipient address (wrong length)
-        let invalid_recipient = [0x12u8; 19]; // Too short
+        // Invalid recipient address
+        let invalid_recipient = [0x12u8; 19];
         assert!(verifier
-            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &invalid_recipient)
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &invalid_recipient, 1)
+            .is_err());
+
+        // Invalid version
+        assert!(verifier
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 99)
             .is_err());
     }
 

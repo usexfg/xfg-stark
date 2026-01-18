@@ -1,4 +1,4 @@
-//! STARK Proof Data Schema for XFG → HEAT Burn & Mint
+//! STARK Proof Data Schema for XFG → HEAT Burn & COLD Deposit
 //!
 //! This module defines the data structures needed for STARK proof generation,
 //! with JSON serialization for easy CLI tool integration.
@@ -7,12 +7,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
+/// Proof type: HEAT burn or COLD deposit
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProofType {
+    /// XFG burn → HEAT mint
+    HEAT,
+    /// XFG deposit → CD interest mint
+    COLD,
+}
+
 /// Complete data package for STARK proof generation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarkProofDataPackage {
+    /// Proof type (HEAT burn or COLD deposit)
+    pub proof_type: ProofType,
     /// Metadata about the proof request
     pub metadata: ProofMetadata,
-    /// Burn transaction details
+    /// Burn/Deposit transaction details
     pub burn_transaction: BurnTransaction,
     /// Recipient information
     pub recipient: RecipientInfo,
@@ -276,12 +287,12 @@ impl StarkProofDataPackage {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
 
-        // Validate burn amount
-        let valid_amounts = [0.8, 800.0];
+        // Validate burn/deposit amount (4 tiers)
+        let valid_amounts = [0.8, 8.0, 80.0, 800.0];
         let burn_amount = self.burn_transaction.burn_amount_xfg.parse::<f64>().unwrap_or(0.0);
         if !valid_amounts.contains(&burn_amount) {
             errors.push(format!(
-                "Burn amount must be exactly 0.8 XFG or 800.0 XFG, got {}",
+                "Burn/deposit amount must be exactly 0.8, 8, 80, or 800 XFG, got {}",
                 burn_amount
             ));
         }

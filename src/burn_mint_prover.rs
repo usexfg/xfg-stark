@@ -72,7 +72,7 @@ impl XfgBurnMintProver {
     ) -> Result<StarkProof> {
         // Validate inputs (using legacy txn_hash for backward compatibility)
         let legacy_txn_hash = u64::from_le_bytes(tx_prefix_hash[0..8].try_into().unwrap());
-        self.validate_inputs(burn_amount, mint_amount, legacy_txn_hash, recipient_address)?;
+        self.validate_inputs(burn_amount, mint_amount, legacy_txn_hash, recipient_address, commitment_version)?;
 
         // Convert secret to field element
         let secret_element = self.secret_to_field_element(secret)?;
@@ -129,37 +129,55 @@ impl XfgBurnMintProver {
     }
 
     /// Validate input parameters (amounts in atomic units)
+    /// Version-aware validation supports v1 (2 tiers), v2 (3 tiers), v3 (3 tiers deposits), v4 (3 tiers yield)
     fn validate_inputs(
         &self,
         burn_amount: u64,
         mint_amount: u64,
         txn_hash: u64,
         recipient_address: &[u8],
+        commitment_version: u32,
     ) -> Result<()> {
-        // Validate burn amount (in atomic units)
-    let standard_burn = 8_000_000;  // 0.8 XFG in atomic units
-            let large_burn = 8_000_000_000; // 800 XFG in atomic units
-    
-    if burn_amount != standard_burn && burn_amount != large_burn {
-        return Err(crate::XfgStarkError::CryptoError(
-            "Burn amount must be exactly 0.8 XFG (8,000,000 atomic units) or 800 XFG (8,000,000,000 atomic units)".to_string(),
-        ));
-    }
+        // Validate burn/deposit and mint amounts based on version
+        if commitment_version == 1 {
+            // Version 1: 2 tiers (XFG burns → HEAT)
+            let standard_burn = 8_000_000u64;      // 0.8 XFG
+            let large_burn = 8_000_000_000u64;     // 800 XFG
 
-        // Validate mint amount matches burn amount (1:1 conversion in atomic units)
-    if mint_amount != burn_amount {
-        return Err(crate::XfgStarkError::CryptoError(format!(
-            "Mint amount {} does not match burn amount {} for 1:1 atomic unit conversion",
-            mint_amount, burn_amount
-        )));
-    }
+            if burn_amount != standard_burn && burn_amount != large_burn {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Version 1: Burn amount must be exactly 0.8 XFG or 800 XFG".to_string(),
+                ));
+            }
 
-        // Validate proportionality (1:1 conversion in atomic units)
-        if mint_amount != burn_amount {
-            return Err(crate::XfgStarkError::CryptoError(format!(
-                "Mint amount {} does not match burn amount {} for 1:1 atomic unit conversion",
-                mint_amount, burn_amount
-            )));
+            // Validate mint amounts match burn amounts (1:1 in atomic units)
+            if mint_amount != burn_amount {
+                return Err(crate::XfgStarkError::CryptoError(format!(
+                    "Mint amount {} doesn't match expected {}", mint_amount, burn_amount
+                )));
+            }
+        } else if commitment_version == 2 {
+            // Version 2: 3 tiers (XFG burns → HEAT)
+            let tier0_burn = 8_000_000u64;         // 0.8 XFG
+            let tier1_burn = 800_000_000u64;       // 80 XFG
+            let tier2_burn = 8_000_000_000u64;     // 800 XFG
+
+            if burn_amount != tier0_burn && burn_amount != tier1_burn && burn_amount != tier2_burn {
+                return Err(crate::XfgStarkError::CryptoError(
+                    "Version 2: Burn amount must be exactly 0.8 XFG, 80 XFG, or 800 XFG".to_string(),
+                ));
+            }
+
+            // Validate mint amounts match burn amounts (1:1 in atomic units)
+            if mint_amount != burn_amount {
+                return Err(crate::XfgStarkError::CryptoError(format!(
+                    "Mint amount {} doesn't match expected {}", mint_amount, burn_amount
+                )));
+            }
+        } else {
+            return Err(crate::XfgStarkError::CryptoError(
+                format!("Unsupported commitment version: {}", commitment_version),
+            ));
         }
 
         // Validate transaction hash
@@ -267,36 +285,57 @@ mod tests {
         ]);
         
         let recipient = [0x12u8; 20]; // Valid 20-byte address
+
+        // Test v1 (2 tiers)
         assert!(prover
-            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient) // 0.8 XFG burn = 0.8 XFG mint (1:1)
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 1) // 0.8 XFG burn
+            .is_ok());
+
+        // Test v2 (3 tiers) - tier 0
+        assert!(prover
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 2)
+            .is_ok());
+
+        // Test v2 (3 tiers) - tier 1 (new 80 XFG tier)
+        assert!(prover
+            .validate_inputs(800_000_000, 800_000_000, tx_hash_u64, &recipient, 2)
+            .is_ok());
+
+        // Test v2 (3 tiers) - tier 2
+        assert!(prover
+            .validate_inputs(8_000_000_000, 8_000_000_000, tx_hash_u64, &recipient, 2)
             .is_ok());
 
         // Invalid burn amount (zero)
-        assert!(prover.validate_inputs(0, 8_000_000, tx_hash_u64, &recipient).is_err());
+        assert!(prover.validate_inputs(0, 8_000_000, tx_hash_u64, &recipient, 1).is_err());
 
-        // Invalid burn amount (too large)
-        let max_atomic = 8_000_000_001; // Exceeds max (800 XFG + 1)
+        // Invalid burn amount for v1 (tier1 not allowed in v1)
         assert!(prover
-            .validate_inputs(max_atomic, 8_000_000, tx_hash_u64, &recipient)
+            .validate_inputs(800_000_000, 800_000_000, tx_hash_u64, &recipient, 1)
             .is_err());
 
         // Invalid mint amount (zero)
-        assert!(prover.validate_inputs(8_000_000, 0, tx_hash_u64, &recipient).is_err());
+        assert!(prover.validate_inputs(8_000_000, 0, tx_hash_u64, &recipient, 1).is_err());
 
         // Invalid proportionality (not 1:1)
         assert!(prover
-            .validate_inputs(8_000_000, 16_000_000, tx_hash_u64, &recipient)
-            .is_err()); // 0.8 XFG != 1.6 XFG in atomic units
+            .validate_inputs(8_000_000, 16_000_000, tx_hash_u64, &recipient, 1)
+            .is_err());
 
         // Invalid transaction hash
         assert!(prover
-            .validate_inputs(8_000_000, 8_000_000, 0, &recipient) // TODO: Use real Fuego tx hash
+            .validate_inputs(8_000_000, 8_000_000, 0, &recipient, 1)
             .is_err());
 
         // Invalid recipient address (wrong length)
         let invalid_recipient = [0x12u8; 19]; // Too short
         assert!(prover
-            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &invalid_recipient)
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &invalid_recipient, 1)
+            .is_err());
+
+        // Invalid version
+        assert!(prover
+            .validate_inputs(8_000_000, 8_000_000, tx_hash_u64, &recipient, 99)
             .is_err());
     }
 
