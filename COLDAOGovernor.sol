@@ -12,7 +12,9 @@ import "./FuegoCOLDAOToken.sol";
  *      - APY rate changes for CD interest
  *      - New edition launches
  *      - Approved interest tokens for v4 (COLD YIELD)
- * @dev Voting power = CD token balance across all editions
+ * @dev Voting power = CD token balance across all editions <----<actually, each of the (4) editions will host its own voting consensus on the platform it was issued. 
+ * however, in the case of COLDAO matters as a whole, in other words ALL members of each edition of COLDAO are effected-
+  *this 1st Edition ETH ( CODL3 ) issuance will hold voting weight of 40%, with the other 3 COLDAO editions each having 20% voting share; to help avoid voting stalemates & promote dynamic governance.
  */
 contract COLDAOGovernor is Ownable, Pausable {
 
